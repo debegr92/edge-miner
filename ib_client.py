@@ -174,7 +174,7 @@ class IBClient(EWrapper, EClient):
             self.logger.error(msg)
 
 
-    def requestData(self, symbol:str, timeframe:str='1 min', duration:str='10 D', keepUpdated:bool=True):
+    def requestData(self, symbol:str, timeframe:str='1 min', duration:str='2 D', endDate:str=''):
         try:
             contract = IBClient.createStockContract(symbol)
             # Historical data
@@ -188,7 +188,7 @@ class IBClient(EWrapper, EClient):
                 self.histTickerIdSymbolTimeframe[tid] = key
                 self.symbolCandleData[key] = []
                 self.reqHistoricalData(
-                    tid, contract, '', duration, timeframe, 'TRADES', True, 2, keepUpdated, []
+                    tid, contract, endDate, duration, timeframe, 'TRADES', True, 2, False, []
                 )
             else:
                 # Already requested data for this symbol

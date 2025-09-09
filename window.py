@@ -15,6 +15,22 @@ from ib_client import IBClient, ObjectType, QueueObject
 from colors import *
 from indicators import indicatorFactory
 
+TF_DURATION_MAP = {
+    '1 min':'1 D',
+    '2 mins':'1 D',
+    '3 mins':'1 D',
+    '5 mins':'1 D',
+    '10 mins':'1 W',
+    '15 mins':'1 W',
+    '20 mins':'1 M',
+    '30 mins':'1 M',
+    '1 hour':'3 M',
+    '2 hours':'3 M',
+    '3 hours':'6 M',
+    '4 hours':'6 M',
+    '1 d':'6 M'
+}
+
 
 class Window():
 
@@ -31,7 +47,7 @@ class Window():
         self.chart.volume_config(up_color=VOLUME_UP_COLOR, down_color=VOLUME_DOWN_COLOR)
         self.chart.topbar.textbox('textbox-ticker', '')
         self.currentTicker = ''
-        self.chart.topbar.menu('menu-timeframe', ('1 min', '3 mins', '5 mins', '10 mins', '15 mins', '1 h', '4 h', '1 d'), default='1 min', func=self.onTimeframeSelection)
+        self.chart.topbar.menu('menu-timeframe', tuple(list(TF_DURATION_MAP.keys())), default='1 min', func=self.onTimeframeSelection)
         self.currentTimeframe = '1 min'
         self.chart.topbar.textbox('sep1', '|')
         # create a button for taking a screenshot of the chart
@@ -200,7 +216,12 @@ class Window():
             self.chart.topbar['textbox-ticker'].set(self.currentTicker)
             self.chart.topbar['textbox-date'].set(self.currentDate.isoformat())
             self.chart.spinner(True)
-            self.client.requestData(self.currentTicker, self.currentTimeframe, keepUpdated=False)
+            self.client.requestData(
+                self.currentTicker,
+                self.currentTimeframe,
+                TF_DURATION_MAP[self.currentTimeframe],
+                self.currentDate.strftime('%Y%m%d 23:59:59 US/Eastern')
+            )
         except:
             self.logger.exception('getBarData: EXCEPTION')
 
@@ -242,7 +263,8 @@ class Window():
     def onTimeframeSelection(self, chart:Chart):
         self.logger.debug('selected timeframe -> NOT IMPLEMENTED')
         self.currentTimeframe = self.chart.topbar['menu-timeframe'].value
-        self.getBarData()
+        if self.currentTicker != None and self.currentTicker != '':
+            self.getBarData()
 
 
     def onClick(self, chart:Chart, timestamp:float, price:float):
