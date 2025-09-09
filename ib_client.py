@@ -52,11 +52,8 @@ class IBClient(EWrapper, EClient):
         self.clientId = clientId
 
         # Variables to save runtime data
-        self.orderId:int|None = None
         self.tickerId:int = 0
         self.requestId:int = 0
-        self.netLiq:float = 0
-        self.activePnLReqs:Dict[int, str] = {}			# conId -> symbol
         self.symbolTimeframeHistTickerIds:Dict[Tuple[str, str], int] = {}	# symbol,timeframe -> tickerId
         self.histTickerIdSymbolTimeframe:Dict[int, Tuple[str, str]] = {}	# tickerId -> symbol,timeframe
         self.symbolLiveTickerIds:Dict[str, int] = {}	# symbol -> tickerId
@@ -106,24 +103,6 @@ class IBClient(EWrapper, EClient):
             )
         except:
             self.logger.exception('sendMessage: EXCEPTION!')
-
-
-    def nextValidId(self, orderId:int):
-        """Callback to get the next valid order ID
-
-        Args:
-            orderId (int): Next order ID to use.
-        """
-        try:
-            self.orderId = orderId
-            self.logger.info(f'next valid id is {self.orderId}')
-        except:
-            self.logger.exception('nextValidId: EXCEPTION')
-
-
-    def getNextOrderId(self) -> int:
-        self.orderId = self.orderId+1
-        return self.orderId
 
 
     def getNextTickerId(self) -> int:
