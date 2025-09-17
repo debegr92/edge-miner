@@ -57,7 +57,7 @@ class Window():
         # Tools
         self.chart.topbar.textbox('sep2', '|')
         self.riskLine:HorizontalLine = None
-        self.chart.topbar.menu('menu-marker', ('🟩', '🟥', '🟪'), default='🟩', func=self.onChangeMarker)
+        self.chart.topbar.menu('menu-marker', ('🟩', '🟥', '🟪'), default='🟩', func=self.onToggleMarker)
         self.chart.topbar.button('button-clear-all', '🗑️', func=self.onClearAll)
 
         # Current watched date
@@ -112,7 +112,8 @@ class Window():
         self.chart.hotkey('ctrl', 'a', self.onHotkeyPrevDay)
         self.chart.hotkey('ctrl', 'd', self.onHotkeyNextDay)
         self.chart.hotkey('ctrl', 's', self.onHotkeyScreenshot)
-        self.chart.hotkey('ctrl', 'm', self.onToggleMarker)
+        self.chart.hotkey('ctrl', 'm', self.onHotkeyToggleMarker)
+        self.chart.hotkey('ctrl', 'r', self.onHotkeyClearAll)
 
 
     async def run(self):
@@ -303,8 +304,8 @@ class Window():
         self.onTakeScreenshot(self.chart)
 
 
-    def onToggleMarker(self, key:str):
-        self.logger.debug('onToggleMarker()')
+    def onHotkeyToggleMarker(self, key:str):
+        self.logger.debug('onHotkeyToggleMarker()')
         menu:MenuWidget = self.chart.topbar.get('menu-marker')
         if menu.value == '🟩':
             menu.set('🟥')
@@ -312,6 +313,10 @@ class Window():
             menu.set('🟪')
         else:
             menu.set('🟩')
+
+
+    def onToggleMarker(self, chart:Chart):
+        self.logger.debug('onToggleMarker()')
 
 
     # handler for the screenshot button
@@ -336,16 +341,32 @@ class Window():
             self.logger.exception('onTakeScreenshot: EXCEPTION')
 
 
-    def onChangeMarker(self, chart:Chart):
-        pass
+    def onHotkeyClearAll(self, key:str):
+        self.onClearAll(self.chart)
 
 
     def onClearAll(self, chart:Chart):
         try:
             self.logger.debug(f'onClearAll()')
-            
+            self.chart.clear_markers()
+            if self.riskLine != None:
+                self.deleteHorizontalLine(self.riskLine)
+                self.riskLine = None
         except:
             self.logger.exception('onDeleteWatchlistClick: EXCEPTION')
+
+
+    def deleteHorizontalLine(self, hline:HorizontalLine) -> None:
+        try:
+            self.logger.debug(f'deleteHorizontalLine() id={hline.id}')
+            hline.delete()
+            hline.run_script(f'''
+                const idx = {hline.chart.id}.toolBox._drawingTool._drawings.findIndex(obj => obj._callbackName === "{hline.id}");
+                if (idx !== -1)
+                    {hline.chart.id}.toolBox._drawingTool._drawings.splice(idx, 1);
+            ''')
+        except:
+            self.logger.exception(f'deleteHorizontalLine: EXCEPTION!')
 
 
     def onHotkeyPrevDay(self, key:str):
