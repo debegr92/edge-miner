@@ -222,6 +222,7 @@ class Window():
         try:
             self.logger.debug(f'getBarData()')
             self.chart.watermark('loading...', color=WATERMARK_COLOR)
+            self.onClearAll(self.chart)
             self.chart.topbar['textbox-ticker'].set(self.currentTicker)
             self.chart.topbar['textbox-date'].set(self.currentDate.isoformat())
             self.chart.spinner(True)
