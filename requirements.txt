@@ -1,3 +1,4 @@
 pandas
 pywebview[qt]
 lightweight-charts-v5
+python-dotenv

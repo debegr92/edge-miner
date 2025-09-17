@@ -4,6 +4,9 @@ import asyncio
 import logging
 from sys import exit, stdout
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from window import Window
 from ib_client import IBClient
 
@@ -33,8 +36,7 @@ async def main():
         dataQueue = asyncio.Queue()
         loop = asyncio.get_running_loop()
 
-        # 7496 -> live, 7497 -> demo
-        client = IBClient(dataQueue, loop, port=7497)
+        client = IBClient(dataQueue, loop, port=int(os.environ.get('TWS_PORT')))
 
         window = Window(client, dataQueue)
         # Start the async processor
