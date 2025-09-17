@@ -3,6 +3,8 @@
 
 > _Plan the trade, follow the plan!_
 
+![edge-miner](doc/img/edge-miner.png)
+
 # Install
 Install the Interactive Brokers TWS API on your system.
 ```
@@ -12,7 +14,5 @@ pip install -r requirements.txt
 ```
 
 # ToDo
-- [ ] Add menu and click action for markers and risk line
-- [ ] Clear all markers button
 - [ ] Add tagging options
 - [ ] Build database for all setups
