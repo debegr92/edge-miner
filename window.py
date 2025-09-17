@@ -7,7 +7,8 @@ from datetime import date, datetime, timedelta
 
 # Charting
 from lightweight_charts import Chart
-from lightweight_charts.topbar import ButtonWidget
+from lightweight_charts.drawings import HorizontalLine
+from lightweight_charts.topbar import ButtonWidget, MenuWidget
 
 # IB
 from ib_client import IBClient, ObjectType, QueueObject
@@ -53,8 +54,14 @@ class Window():
         # create a button for taking a screenshot of the chart
         self.chart.topbar.button('screenshot', '📸', func=self.onTakeScreenshot)
 
+        # Tools
+        self.chart.topbar.textbox('sep2', '|')
+        self.riskLine:HorizontalLine = None
+        self.chart.topbar.menu('menu-marker', ('🟩', '🟥', '🟪'), default='🟩', func=self.onChangeMarker)
+        self.chart.topbar.button('button-clear-all', '🗑️', func=self.onClearAll)
+
         # Current watched date
-        self.chart.topbar.textbox('sep4', '|')
+        self.chart.topbar.textbox('sep3', '|')
         self.chart.topbar.button('button-prev-day', '⏮️', func=self.onPrevDay)
         self.currentDate = date.today() - timedelta(days=1)
         self.chart.topbar.textbox('textbox-date', self.currentDate.isoformat())	# |<< 2025-08-02 >>|
@@ -101,10 +108,11 @@ class Window():
         self.chart.events.click += self.onClick
         self.chart.events.range_change += self.onRangeChange
 
-		# Hotkeys
-        self.chart.hotkey('shift', 'v', self.onHotkeyPrevDay)
-        self.chart.hotkey('shift', 'c', self.onHotkeyNextDay)
+        # Hotkeys
+        self.chart.hotkey('ctrl', 'a', self.onHotkeyPrevDay)
+        self.chart.hotkey('ctrl', 'd', self.onHotkeyNextDay)
         self.chart.hotkey('ctrl', 's', self.onHotkeyScreenshot)
+        self.chart.hotkey('ctrl', 'm', self.onToggleMarker)
 
 
     async def run(self):
@@ -268,13 +276,21 @@ class Window():
 
 
     def onClick(self, chart:Chart, timestamp:float, price:float):
-        # TODO: Implement trade marker
-        self.logger.info(f'onClick({timestamp}, {price})')
+        self.logger.debug(f'onClick({timestamp}, {price})')
+        tool = self.chart.topbar['menu-marker'].value
         try:
-            if timestamp != None and price != None:
-                pass
-            else:
-                pass
+            if timestamp == None or price == None:
+                return
+            
+            if tool == '🟩':
+                self.chart.marker(timestamp*1000, 'below', 'arrow_up', BUY_MARKER_COLOR)
+            elif tool == '🟥':
+                self.chart.marker(timestamp*1000, 'above', 'arrow_down', SELL_MARKER_COLOR)
+            elif tool == '🟪':
+                if self.riskLine == None:
+                    self.riskLine = self.chart.horizontal_line(price, RISK_LINE_COLOR, width=2)
+                else:
+                    self.riskLine.update(price)
         except:
             self.logger.exception('onClick: EXCEPTION')
 
@@ -285,6 +301,17 @@ class Window():
 
     def onHotkeyScreenshot(self, key:str):
         self.onTakeScreenshot(self.chart)
+
+
+    def onToggleMarker(self, key:str):
+        self.logger.debug('onToggleMarker()')
+        menu:MenuWidget = self.chart.topbar.get('menu-marker')
+        if menu.value == '🟩':
+            menu.set('🟥')
+        elif menu.value == '🟥':
+            menu.set('🟪')
+        else:
+            menu.set('🟩')
 
 
     # handler for the screenshot button
@@ -307,6 +334,18 @@ class Window():
         except Exception as e:
             self.showMessage(f'Unable to save screenshot, check logs!')
             self.logger.exception('onTakeScreenshot: EXCEPTION')
+
+
+    def onChangeMarker(self, chart:Chart):
+        pass
+
+
+    def onClearAll(self, chart:Chart):
+        try:
+            self.logger.debug(f'onClearAll()')
+            
+        except:
+            self.logger.exception('onDeleteWatchlistClick: EXCEPTION')
 
 
     def onHotkeyPrevDay(self, key:str):
