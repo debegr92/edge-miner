@@ -1,9 +1,6 @@
 # General Imports
-import json
 import asyncio
 from datetime import datetime
-from enum import Enum
-from dataclasses import dataclass, field
 import logging
 import threading
 from typing import Dict, List, Tuple, Optional
@@ -13,39 +10,20 @@ from ibapi.common import BarData
 from ibapi.contract import Contract, ContractDetails
 from ibapi.wrapper import EWrapper
 
-class ObjectType(Enum):
-    Message = 0
-    HistoricalData = 1
-    Positions = 2
-    Executions = 3
-    Orders = 4
-    RealtimeBar = 5
-    Price = 6
-
-@dataclass
-class QueueObject:
-    type: ObjectType
-    symbol: str = None
-    timeframe: str = None
-    stringData: str = None
-    listData: list = field(default_factory=lambda: [])
+from generic_client import GenericClient, ObjectType, QueueObject
 
 
-class IBClient(EWrapper, EClient):
+class IBClient(GenericClient, EWrapper, EClient):
 
     dataQueue:asyncio.Queue
 
-    def __init__(self, dataQueue:asyncio.Queue, loop, host:str='localhost', port:int=7497, clientId:int=4243):
+    def __init__(self, dataQueue:asyncio.Queue, loop:asyncio.AbstractEventLoop, host:str='localhost', port:int=7497, clientId:int=4243):
+        GenericClient.__init__(self, dataQueue, loop)
         EClient.__init__(self, self)
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel('INFO')
 
         # Stop logger from spamming INFO log if not DEBUG level
         utilsLogger = logging.getLogger('ibapi.utils')
         utilsLogger.setLevel(logging.WARNING)
-
-        self.dataQueue:asyncio.Queue = dataQueue
-        self.loop = loop
 
         self.host = host
         self.port = port
@@ -69,6 +47,10 @@ class IBClient(EWrapper, EClient):
             threading.Thread(target=self.run, daemon=True).start()
         except:
             self.logger.exception(f'Error while connect to TWS/Gateway')
+
+
+    def close(self):
+        self.disconnect()
 
 
     @staticmethod

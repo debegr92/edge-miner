@@ -10,11 +10,10 @@ from lightweight_charts import Chart
 from lightweight_charts.drawings import HorizontalLine
 from lightweight_charts.topbar import ButtonWidget, MenuWidget
 
-# IB
-from ib_client import IBClient, ObjectType, QueueObject
-
 from colors import *
 from indicators import indicatorFactory
+from generic_client import GenericClient, ObjectType, QueueObject
+
 
 TF_DURATION_MAP = {
     '1 min':'1 D',
@@ -35,12 +34,12 @@ TF_DURATION_MAP = {
 
 class Window():
 
-    def __init__(self, client:IBClient, dataQueue:asyncio.Queue):
+    def __init__(self, client:GenericClient):
         self.logger = logging.getLogger(__name__)
         # Set correct log level
         self.logger.setLevel('INFO')
         self.client = client
-        self.dataQueue:asyncio.Queue = dataQueue
+        self.dataQueue:asyncio.Queue = client.dataQueue
 
         # Price Charts
         self.chart = Chart(title='EdgeMiner', inner_height=1, inner_width=1, toolbox=True, maximize=True, debug=False)

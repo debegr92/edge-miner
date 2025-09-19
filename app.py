@@ -38,7 +38,7 @@ async def main():
 
         client = IBClient(dataQueue, loop, port=int(os.environ.get('TWS_PORT')))
 
-        window = Window(client, dataQueue)
+        window = Window(client)
         # Start the async processor
         task = asyncio.create_task(window.run())
 
@@ -47,8 +47,8 @@ async def main():
         await task
         logger.debug('chart window closed')
 
-        logger.info('Disconnecting from IB API...')
-        client.disconnect()
+        logger.info('Disconnecting from client...')
+        client.close()
 
     except KeyboardInterrupt:
         logger.warning('Keyboard interrupt, shutting down...')
