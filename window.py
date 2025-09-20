@@ -28,7 +28,7 @@ TF_DURATION_MAP = {
     '2 hours':'3 M',
     '3 hours':'6 M',
     '4 hours':'6 M',
-    '1 d':'6 M'
+    '1 day':'5 Y'
 }
 
 
@@ -69,12 +69,14 @@ class Window():
         self.chart.topbar.button('button-info', 'ℹ️', align='right', func=self.onInfoClick)
 
         self.vwapLine = self.chart.create_line('VWAP', color=VWAP_COLOR, width=2, price_line=False, price_label=False)
-        self.emaLine = self.chart.create_line('EMA 10', color=EMA_COLOR, width=1, price_line=False, price_label=False)
-        self.smaLine = self.chart.create_line('SMA 20', color=SMA_COLOR, width=2, price_line=False, price_label=False)
-        self.bb1uLine = self.chart.create_line('bb_upper1', color=BB_COLOR, width=1, price_line=False, price_label=False)
-        self.bb2uLine = self.chart.create_line('bb_upper2', color=BB_COLOR, width=1, price_line=False, price_label=False)
-        self.bb1lLine = self.chart.create_line('bb_lower1', color=BB_COLOR, width=1, price_line=False, price_label=False)
-        self.bb2lLine = self.chart.create_line('bb_lower2', color=BB_COLOR, width=1, price_line=False, price_label=False)
+        self.emaLine = self.chart.create_line('EMA', color=EMA_COLOR, width=1, price_line=False, price_label=False)
+        self.smaLine = self.chart.create_line('SMA', color=SMA_COLOR, width=2, price_line=False, price_label=False)
+        self.bb1uLine = self.chart.create_line('BB_UPPER1', color=BB_COLOR, width=1, price_line=False, price_label=False)
+        self.bb2uLine = self.chart.create_line('BB_UPPER2', color=BB_COLOR, width=1, price_line=False, price_label=False)
+        self.bb1lLine = self.chart.create_line('BB_LOWER1', color=BB_COLOR, width=1, price_line=False, price_label=False)
+        self.bb2lLine = self.chart.create_line('BB_LOWER2', color=BB_COLOR, width=1, price_line=False, price_label=False)
+        self.kcUpper = self.chart.create_line('KC_UPPER', color=KC_COLOR, width=1, price_line=False, price_label=False)
+        self.kcLower = self.chart.create_line('KC_LOWER', color=KC_COLOR, width=1, price_line=False, price_label=False)
 
         # Indicators
         # ADX
@@ -85,7 +87,7 @@ class Window():
         self.adxLine.horizontal_line(12, text='12', color=HLINE_COLOR, width=1, style='solid', axis_label_visible=False)
         self.adxLine.horizontal_line(20, text='20', color=HLINE_COLOR, width=1, style='solid', axis_label_visible=False)
         # BB%
-        self.bbpcLine = self.chart.create_line('bb_pc', color=BBPC_COLOR, price_line=False, width=1, pane_index=2)
+        self.bbpcLine = self.chart.create_line('BB_PC', color=BBPC_COLOR, price_line=False, width=1, pane_index=2)
         # Add horizontal lines to BB% indicator
         self.bbpcLine.horizontal_line(3, text='+3', color=HLINE_COLOR, width=1, style='solid', axis_label_visible=False)
         self.bbpcLine.horizontal_line(2, text='+2', color=HLINE_COLOR, width=1, style='solid', axis_label_visible=False)
@@ -93,11 +95,11 @@ class Window():
         self.bbpcLine.horizontal_line(-2, text='-2', color=HLINE_COLOR, width=1, style='solid', axis_label_visible=False)
         self.bbpcLine.horizontal_line(-3, text='-3', color=HLINE_COLOR, width=1, style='solid', axis_label_visible=False)
         # RSI
-        #self.rsiLine = self.chart.create_line('RSI 14', color=RSI_COLOR, price_line=False, width=1, pane_index=3)
+        self.rsiLine = self.chart.create_line('RSI', color=RSI_COLOR, price_line=False, width=1, pane_index=3)
         # Add horizontal lines to RSI indicator
-        #self.rsiLine.horizontal_line(50, text='50', color=HLINE_COLOR, width=1, style='solid', axis_label_visible=False)
-        #self.rsiLine.horizontal_line(70, text='70', color=HLINE_COLOR, width=1, style='solid', axis_label_visible=False)
-        #self.rsiLine.horizontal_line(30, text='30', color=HLINE_COLOR, width=1, style='solid', axis_label_visible=False)		
+        self.rsiLine.horizontal_line(50, text='50', color=HLINE_COLOR, width=1, style='solid', axis_label_visible=False)
+        self.rsiLine.horizontal_line(70, text='70', color=HLINE_COLOR, width=1, style='solid', axis_label_visible=False)
+        self.rsiLine.horizontal_line(30, text='30', color=HLINE_COLOR, width=1, style='solid', axis_label_visible=False)		
 
         # Resize the main chart pane
         self.chart.resize_pane(0, 600)
@@ -240,23 +242,10 @@ class Window():
         try:
             # Calculate all data
             chartData = indicatorFactory(df)
+            chartData.to_json('out.json')
             # Update chart candles
             self.chart.set(chartData)
-            self.chart.legend(True, lines=False)
-
-            self.vwapLine.set(chartData)
-            self.emaLine.set(chartData)
-            self.smaLine.set(chartData)
-            self.bb1uLine.set(chartData)
-            self.bb2uLine.set(chartData)
-            self.bb1lLine.set(chartData)
-            self.bb2lLine.set(chartData)
-
-            self.bbpcLine.set(chartData)
-            self.adxLine.set(chartData)
-            self.dmimLine.set(chartData)
-            self.dmipLine.set(chartData)
-            #self.rsiLine.set(chartData)
+            self.chart.legend(visible=True, lines=False, color_based_on_candle=True)
 
             # Remove loading
             self.chart.watermark(f'{symbol} - {self.currentTimeframe} - {self.currentDate.isoformat()}', color=WATERMARK_COLOR)

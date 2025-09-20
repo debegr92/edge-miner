@@ -55,9 +55,14 @@ class IBClient(GenericClient, EWrapper, EClient):
 
     @staticmethod
     def convertBar(bar:BarData) -> dict:
-        t = datetime.fromtimestamp(int(bar.date))
+        # Intraday -> Timestamp as string, >=EOD -> Date string ("20200921")
+        dt = None
+        try:
+            dt = datetime.strptime(bar.date, '%Y%m%d')
+        except:
+            dt = datetime.fromtimestamp(int(bar.date))
         data = {
-            'time': t,
+            'time': dt,
             'open': bar.open,
             'high': bar.high,
             'low': bar.low,

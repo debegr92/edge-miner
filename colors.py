@@ -1,5 +1,6 @@
 # https://rgbacolorpicker.com/
 BB_COLOR = 'rgba(127,127,127,0.5)'
+KC_COLOR = 'rgba(50,50,255,0.5)'
 VWAP_COLOR = 'rgb(0,255,255)'
 EMA_COLOR = 'rgb(255,0,255)'
 SMA_COLOR = 'rgb(255,255,255)'

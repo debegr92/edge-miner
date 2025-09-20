@@ -7,32 +7,34 @@ import pandas as pd
 def indicatorFactory(df:pd.DataFrame) -> pd.DataFrame:
     # Chart 1
     df1 = df.copy()
-    df1 = df1.tail(520).copy()
     df1.reset_index(inplace=True, drop=True)
     df1Vwap = VWAP(df1)
-    df1Ema = EMA(df1)
-    df1Bb = BollingerBands(df1)
+    df1Ema = EMA(df1, period=5)
+    df1Bb = BollingerBands(df1, period=10)
     df1Adx = ADXDMI(df1)
-    #df1Rsi = RSI(df1)
+    df1Rsi = RSI(df1)
+    df1Atr = AverageTrueRange(df1)
 
-    #print(df1)
-    #print(df1Vwap)
-    #print(df1Ema)
-    #print(df1Bb)
-    #print(df1Adx)
-    #print(df1Rsi)
-
+    # TODO: Only VWAP if intraday (timedelta between two timestamps > 4h)
     df1['VWAP'] = df1Vwap['VWAP']
-    df1['EMA 10'] = df1Ema['EMA 10']
-    df1['SMA 20'] = df1Bb['SMA 20']
-    df1['bb_pc'] = df1Bb['bb_pc']
-    df1['bb_upper1'] = df1Bb['bb_upper1']
-    df1['bb_upper2'] = df1Bb['bb_upper2']
-    df1['bb_lower1'] = df1Bb['bb_lower1']
-    df1['bb_lower2'] = df1Bb['bb_lower2']
+    df1['EMA'] = df1Ema['EMA 5']
+    df1['SMA'] = df1Bb['SMA 10']
+    df1['BB_PC'] = df1Bb['bb_pc']
+    df1['BB_UPPER1'] = df1Bb['bb_upper1']
+    df1['BB_UPPER2'] = df1Bb['bb_upper2']
+    df1['BB_LOWER1'] = df1Bb['bb_lower1']
+    df1['BB_LOWER2'] = df1Bb['bb_lower2']
     df1['ADX'] = df1Adx['ADX']
     df1['DMIP'] = df1Adx['DMIP']
     df1['DMIM'] = df1Adx['DMIM']
+    df1['RSI'] = df1Rsi['RSI 14']
+    df1['ATR'] = df1Atr['ATR']
+
+    # Keltner Channel
+    df1['KC_UPPER'] = df1['SMA'] + 2.0 * df1['ATR']
+    df1['KC_LOWER'] = df1['SMA'] - 2.0 * df1['ATR']
+
+    df1.dropna(inplace=True)
 
     return df1
 
@@ -168,83 +170,11 @@ def ADXDMI(dfIn:pd.DataFrame, period:int=14) -> pd.DataFrame:
     return pd.DataFrame({'time': df['time']})
 
 
-def getSupportResistanceLevels(priceData:pd.DataFrame, sensitivity:int=5, threshold:float=0.01, maxLevels:int=10, decay:float=0.005) -> Optional[List[float]]:
-    '''
-    Detects the most important support/resistance levels using local highs/lows,
-    with recency weighting and clustering.
-
-    Args:
-        priceData (pd.DataFrame): Must have 'high' and 'low' columns.
-        sensitivity (int): Local extremum window size.
-        threshold (float): Max relative % difference to cluster levels.
-        maxLevels (int): Max number of strong levels to return (excl. extremes).
-        decay (float): Exponential decay for recency weight (higher = more recent bias).
-
-    Returns:
-        list: Sorted list of important support/resistance price levels.
-    '''
-    try:
-        highs = priceData['high'].values
-        lows = priceData['low'].values
-        levels = []
-        length = len(priceData)
-
-        for i in range(sensitivity, length - sensitivity):
-            isLocalHigh = all(highs[i] > highs[i - j] for j in range(1, sensitivity + 1)) and \
-                        all(highs[i] > highs[i + j] for j in range(1, sensitivity + 1))
-            isLocalLow = all(lows[i] < lows[i - j] for j in range(1, sensitivity + 1)) and \
-                        all(lows[i] < lows[i + j] for j in range(1, sensitivity + 1))
-
-            if isLocalHigh or isLocalLow:
-                level = highs[i] if isLocalHigh else lows[i]
-                recencyWeight = np.exp(-decay * (length - i))  # Newer = higher weight
-                levels.append({'price': level, 'weight': recencyWeight})
-
-        # Cluster similar levels
-        clusters = []
-        for lvl in levels:
-            matched = False
-            for cluster in clusters:
-                if abs(cluster['price'] - lvl['price']) / lvl['price'] < threshold:
-                    # Update cluster with new level
-                    cluster['weightedSum'] += lvl['price'] * lvl['weight']
-                    cluster['weightTotal'] += lvl['weight']
-                    cluster['score'] += lvl['weight']
-                    cluster['price'] = cluster['weightedSum'] / cluster['weightTotal']
-                    matched = True
-                    break
-            if not matched:
-                clusters.append({
-                    'price': lvl['price'],
-                    'weightedSum': lvl['price'] * lvl['weight'],
-                    'weightTotal': lvl['weight'],
-                    'score': lvl['weight']
-                })
-
-        # Sort by score (importance) and select top levels
-        clusters.sort(key=lambda x: x['score'], reverse=True)
-        topLevels = [round(c['price'], 2) for c in clusters[:maxLevels]]
-
-        # Always include all-time high/low
-        allTimeHigh = round(priceData['high'].max(), 2)
-        allTimeLow = round(priceData['low'].min(), 2)
-        if allTimeHigh not in topLevels:
-            topLevels.append(allTimeHigh)
-        if allTimeLow not in topLevels:
-            topLevels.append(allTimeLow)
-
-        return sorted(topLevels)
-    except:
-        logging.exception('Error while calculating support and resistance levels!')
-    return None
-
-
 def VWAP(df: pd.DataFrame) -> pd.DataFrame:
     """
     Add intraday VWAP (resets daily) as a new column 'VWAP'.
     """
     df = df.copy()
-    #df['datetime'] = pd.to_datetime(df['time'])
     df.set_index('time', inplace=True, drop=False)
 
     typical_price = (df['high'] + df['low'] + df['close']) / 3
@@ -257,3 +187,23 @@ def VWAP(df: pd.DataFrame) -> pd.DataFrame:
         'time': df['time'],
         'VWAP': df['VWAP']
     })
+
+
+def AverageTrueRange(dfIn:pd.DataFrame, period:int=20) -> float:
+    try:
+        df = dfIn.copy()
+        # Calculate ranges
+        df['r1'] = df['high']-df['low']
+        df['r2'] = df['high']-df['close'].shift(1)
+        df['r3'] = df['low']-df['close'].shift(1)
+        # Assing maximum of different ranges
+        df['MAXTR'] = df[['r1', 'r2', 'r3']].max(axis=1)
+        # Average over N
+        df['ATR'] = df['MAXTR'].rolling(window=period).mean()
+        return pd.DataFrame({
+                'time': df['time'],
+                f'ATR': df['ATR']
+            })
+    except:
+        logging.exception('Error while calculating indicator "AverageTrueRange"')
+    return pd.DataFrame({'time': df['time']})
