@@ -2,21 +2,52 @@ import logging
 from typing import List, Tuple, Optional
 import numpy as np
 import pandas as pd
+from ta.trend import PSARIndicator
+
+
+def isIntraday(df:pd.DataFrame) -> True:
+    """
+    Detect whether a pandas DataFrame with a 'time' column (datetime)
+    represents a daily financial series or an intraday one, based on
+    the first two rows.
+
+    Args:
+        df (pd.DataFrame): Pandas DataFrame object with **time** column (datetime).
+
+    Returns:
+        True: True if intraday series
+    """
+    if 'time' not in df.columns:
+        raise ValueError("DataFrame must contain a 'time' column")
+    if len(df) < 2:
+        raise ValueError("DataFrame must have at least two rows to detect frequency")
+
+    # Ensure sorted by time
+    df_sorted = df.sort_values('time').reset_index(drop=True)
+    
+    delta = df_sorted.loc[1, 'time'] - df_sorted.loc[0, 'time']
+
+    if delta >= pd.Timedelta(days=1):
+        return False
+    return True
 
 
 def indicatorFactory(df:pd.DataFrame) -> pd.DataFrame:
     # Chart 1
     df1 = df.copy()
     df1.reset_index(inplace=True, drop=True)
-    df1Vwap = VWAP(df1)
+
+    # Only calculate VWAP on intraday charts
+    if isIntraday(df1):
+        df1Vwap = VWAP(df1)
+        df1['VWAP'] = df1Vwap['VWAP']
+
     df1Ema = EMA(df1, period=5)
     df1Bb = BollingerBands(df1, period=10)
     df1Adx = ADXDMI(df1)
     df1Rsi = RSI(df1)
     df1Atr = AverageTrueRange(df1)
-
-    # TODO: Only VWAP if intraday (timedelta between two timestamps > 4h)
-    df1['VWAP'] = df1Vwap['VWAP']
+    
     df1['EMA'] = df1Ema['EMA 5']
     df1['SMA'] = df1Bb['SMA 10']
     df1['BB_PC'] = df1Bb['bb_pc']
@@ -33,6 +64,10 @@ def indicatorFactory(df:pd.DataFrame) -> pd.DataFrame:
     # Keltner Channel
     df1['KC_UPPER'] = df1['SMA'] + 2.0 * df1['ATR']
     df1['KC_LOWER'] = df1['SMA'] - 2.0 * df1['ATR']
+
+    # Parabolic Stop and Reverse
+    dfPsar = PSARIndicator(df1['high'], df1['low'], df1['close'], fillna=True)
+    df1['PSAR'] = dfPsar.psar()
 
     df1.dropna(inplace=True)
 

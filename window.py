@@ -77,6 +77,8 @@ class Window():
         self.bb2lLine = self.chart.create_line('BB_LOWER2', color=BB_COLOR, width=1, price_line=False, price_label=False)
         self.kcUpper = self.chart.create_line('KC_UPPER', color=KC_COLOR, width=1, price_line=False, price_label=False)
         self.kcLower = self.chart.create_line('KC_LOWER', color=KC_COLOR, width=1, price_line=False, price_label=False)
+        # TODO: Dot style not available
+        #self.psarLine = self.chart.create_line('PSAR', color=PSAR_COLOR, width=1, price_line=False, price_label=False, style='dotted')
 
         # Indicators
         # ADX
