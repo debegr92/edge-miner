@@ -3,3 +3,5 @@ pywebview[qt]
 lightweight-charts-v5
 python-dotenv
 ta
+dash
+dash-bootstrap-components
