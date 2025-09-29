@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from statics import DATE_RANGES
+from utils import parseBool
 
 import logging
 from sys import stdout
@@ -174,7 +175,8 @@ def generateMultipleHistograms(dfIn:pd.DataFrame, cols:list, subplot_columns:int
 
         fig = make_subplots(
             rows=n_rows, cols=subplot_columns,
-            subplot_titles=[f'{g}' for g in cols]
+            subplot_titles=[f'{g}' for g in cols],
+            horizontal_spacing=0.03, vertical_spacing=0.07
         )
 
         for i, name in enumerate(cols):
@@ -196,7 +198,7 @@ def generateMultipleHistograms(dfIn:pd.DataFrame, cols:list, subplot_columns:int
 
         fig.update_layout(
             showlegend=False,
-            height=1100, width=2000
+            height=920, width=1600
         )
         
         return fig
@@ -254,4 +256,7 @@ def onButtonShowClick(direction:str, type:str, strategy:str, ticker:str, startDa
 
 # Run the app
 if __name__ == '__main__':
-    app.run(debug=True, port=8001)
+    app.run(
+        port=8001,
+        debug=parseBool(os.environ.get('DASH_DEBUG', 'false')),
+    )
