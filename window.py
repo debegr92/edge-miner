@@ -3,19 +3,21 @@ import os
 import sys
 import logging
 import pandas as pd
-from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
+from datetime import date, time, datetime, timedelta
 
 # Charting
 from lightweight_charts import Chart
 from lightweight_charts.drawings import HorizontalLine
-from lightweight_charts.topbar import ButtonWidget, MenuWidget
+from lightweight_charts.topbar import ButtonWidget, MenuWidget, SwitcherWidget
 
 from colors import *
-from indicators import indicatorFactory
+from indicators import indicatorFactory, getCandleType
 from generic_client import GenericClient, ObjectType, QueueObject
 
 
 TF_DURATION_MAP = {
+    '1 day':'5 Y',
     '1 min':'1 D',
     '2 mins':'1 D',
     '3 mins':'1 D',
@@ -27,8 +29,7 @@ TF_DURATION_MAP = {
     '1 hour':'3 M',
     '2 hours':'3 M',
     '3 hours':'6 M',
-    '4 hours':'6 M',
-    '1 day':'5 Y'
+    '4 hours':'6 M'
 }
 
 
@@ -40,6 +41,11 @@ class Window():
         self.logger.setLevel('INFO')
         self.client = client
         self.dataQueue:asyncio.Queue = client.dataQueue
+        self.data:pd.DataFrame = None
+        
+        self.setups:pd.DataFrame = pd.DataFrame()
+        if os.path.exists('setups.json'):
+            self.setups = pd.read_json('setups.json')
 
         # Price Charts
         self.chart = Chart(title='EdgeMiner', inner_height=1, inner_width=1, toolbox=True, maximize=True, debug=False)
@@ -47,8 +53,8 @@ class Window():
         self.chart.volume_config(up_color=VOLUME_UP_COLOR, down_color=VOLUME_DOWN_COLOR)
         self.chart.topbar.textbox('textbox-ticker', '')
         self.currentTicker = ''
-        self.chart.topbar.menu('menu-timeframe', tuple(list(TF_DURATION_MAP.keys())), default='1 min', func=self.onTimeframeSelection)
-        self.currentTimeframe = '1 min'
+        self.chart.topbar.menu('menu-timeframe', tuple(list(TF_DURATION_MAP.keys())), default='1 day', func=self.onTimeframeSelection)
+        self.currentTimeframe = '1 day'
         self.chart.topbar.textbox('sep1', '|')
         # create a button for taking a screenshot of the chart
         self.chart.topbar.button('screenshot', '📸', func=self.onTakeScreenshot)
@@ -56,6 +62,7 @@ class Window():
         # Tools
         self.chart.topbar.textbox('sep2', '|')
         self.riskLine:HorizontalLine = None
+        self.chart.topbar.switcher('switcher-type', ('Signal', 'Trade',), 'Signal', func=self.onSwitchType)
         self.chart.topbar.menu('menu-marker', ('🟩', '🟥', '🟪'), default='🟩', func=self.onToggleMarker)
         self.chart.topbar.button('button-clear-all', '🗑️', func=self.onClearAll)
 
@@ -65,6 +72,9 @@ class Window():
         self.currentDate = date.today() - timedelta(days=1)
         self.chart.topbar.textbox('textbox-date', self.currentDate.isoformat())	# |<< 2025-08-02 >>|
         self.chart.topbar.button('button-next-day', '⏭️', func=self.onNextDay)
+
+        self.chart.topbar.textbox('sep4', '|')
+        self.chart.topbar.menu('menu-strategy', ('Mean Reversion','Trend Follow','VWAP Test','VWAP Cross'), default='Mean Reversion', func=self.onStrategySelection)
 
         self.chart.topbar.button('button-info', 'ℹ️', align='right', func=self.onInfoClick)
 
@@ -192,30 +202,45 @@ class Window():
                 self.logger.warning(f'empty search string or same as active ticker')
                 return
 
-            searchString = searchString.replace(' ', '')
-            parts = searchString.split(',')
-            
-            newTicker = self.currentTicker
-            newDate = self.currentDate
-            if len(parts) > 1:
-                # ticker and date
-                newTicker = parts[0]
-                newDate = date.fromisoformat(parts[1])
+            if ':' in searchString:
+                # Additional function
+                searchString = searchString.upper().replace(' ', '')
+                parts = searchString.split(':')
+                if parts[0] == 'IMPORT':
+                    dates = parts[1].split(',')
+                    # Tag trades date by date
+                    for d in dates:
+                        d = datetime.fromisoformat(d).date()
+                        dt = datetime.combine(d, time(15, 30))
+                        self.addSetup(dt)
+                else:
+                    raise Exception('Unknown action')
             else:
-                # only ticker
-                try:
-                    temp = date.fromisoformat(parts[0])
-                    # Successfully parse -> new date
-                    newDate = temp
-                except:
-                    # Otherwise use input as new ticker
+                # Request new symbol
+                searchString = searchString.replace(' ', '')
+                parts = searchString.split(',')
+                
+                newTicker = self.currentTicker
+                newDate = self.currentDate
+                if len(parts) > 1:
+                    # ticker and date
                     newTicker = parts[0]
+                    newDate = date.fromisoformat(parts[1])
+                else:
+                    # only ticker
+                    try:
+                        temp = date.fromisoformat(parts[0])
+                        # Successfully parse -> new date
+                        newDate = temp
+                    except:
+                        # Otherwise use input as new ticker
+                        newTicker = parts[0]
 
-            if newTicker != self.currentTicker or newDate != self.currentDate:
-                # Save new data and request
-                self.currentTicker = newTicker
-                self.currentDate = newDate
-                self.getBarData()
+                if newTicker != self.currentTicker or newDate != self.currentDate:
+                    # Save new data and request
+                    self.currentTicker = newTicker
+                    self.currentDate = newDate
+                    self.getBarData()
         except:
             self.logger.exception('onSearch: EXCEPTION')
             self.showHelpMessage()
@@ -244,19 +269,18 @@ class Window():
         try:
             # Calculate all data
             chartData = indicatorFactory(df)
-            chartData.to_json('out.json')
             # Update chart candles
             self.chart.set(chartData)
             self.chart.legend(visible=True, lines=False, color_based_on_candle=True)
-
             # Remove loading
             self.chart.watermark(f'{symbol} - {self.currentTimeframe} - {self.currentDate.isoformat()}', color=WATERMARK_COLOR)
             self.chart.spinner(False)
-
+            self.data = chartData
         except:
             self.chart.watermark('Something bad happend :( - check the logs!', font_size=22, color=WATERMARK_COLOR)
             self.chart.spinner(False)
             self.logger.exception('updateChart: EXCEPTION')
+        self.updateMarkers()
 
 
     # get new bar data when the user changes timeframes
@@ -274,17 +298,116 @@ class Window():
             if timestamp == None or price == None:
                 return
             
-            if tool == '🟩':
-                self.chart.marker(timestamp*1000, 'below', 'arrow_up', BUY_MARKER_COLOR)
-            elif tool == '🟥':
-                self.chart.marker(timestamp*1000, 'above', 'arrow_down', SELL_MARKER_COLOR)
-            elif tool == '🟪':
-                if self.riskLine == None:
-                    self.riskLine = self.chart.horizontal_line(price, RISK_LINE_COLOR, width=2)
-                else:
-                    self.riskLine.update(price)
+            sType = self.chart.topbar['switcher-type'].value
+            if sType == 'Signal':
+                self.addSetup(datetime.fromtimestamp(timestamp))
+            else:
+                if tool == '🟪':
+                    if self.riskLine == None:
+                        self.riskLine = self.chart.horizontal_line(price, RISK_LINE_COLOR, width=2)
+                    else:
+                        self.riskLine.update(price)
+            
         except:
             self.logger.exception('onClick: EXCEPTION')
+
+
+    def addSetup(self, dt:datetime) -> None:
+        try:
+            tool = self.chart.topbar['menu-marker'].value
+            ticker = self.chart.topbar['textbox-ticker'].value
+            strategy = self.chart.topbar['menu-strategy'].value
+            timeframe = self.chart.topbar['menu-timeframe'].value
+            signalType = self.chart.topbar['switcher-type'].value
+            d = {
+                'ticker': ticker,
+                'strategy': strategy,
+                'timeframe': timeframe,
+                'signalType': signalType
+            }
+            
+            if tool == '🟩':
+                d['direction'] = 'long'
+                self.chart.marker(dt.timestamp()*1000, 'below', 'arrow_up', BUY_MARKER_COLOR)
+            elif tool == '🟥':
+                d['direction'] = 'short'
+                self.chart.marker(dt.timestamp()*1000, 'above', 'arrow_down', SELL_MARKER_COLOR)
+
+            # Closest row
+            pos = self.data['time'].searchsorted(dt)
+            if pos == 0:
+                closest_idx = 0
+            elif pos == len(self.data):
+                closest_idx = len(self.data) - 1
+            else:
+                before, after = self.data.iloc[pos-1], self.data.iloc[pos]
+                closest_idx = pos-1 if abs(before['time'] - dt) <= abs(after['time'] - dt) else pos
+
+            closest_row = self.data.iloc[closest_idx].to_dict()
+
+            # Row before closest (with prefix p)
+            before_row = (
+                self.data.iloc[closest_idx - 1].to_dict() if closest_idx > 0 else {}
+            )
+            before_row_prefixed = {f'p{k}': v for k, v in before_row.items()}
+
+            # Combine
+            d = {**d, **closest_row, **before_row_prefixed}
+
+            # Calculate additional states
+            # percent change
+            d['GAP_PC'] = (d['open']/d['pclose']-1.0)*100.0
+            d['CHANGE_PC'] = (d['close']/d['open']-1.0)*100.0
+            d['pCHANGE_PC'] = (d['pclose']/d['popen']-1.0)*100.0
+            # Volume SMA rising
+            d['VOL_SMA_RISING'] = d['VOL_SMA'] > d['pVOL_SMA']
+            # Volume Multiple vol/volSma
+            d['VOL_MULTIPLE'] = d['volume'] / d['VOL_SMA']
+            d['pVOL_MULTIPLE'] = d['pvolume'] / d['pVOL_SMA']
+            # SMA, EMA
+            d['EMA_RISING'] = d['EMA'] > d['pEMA']
+            d['SMA_RISING'] = d['SMA'] > d['pSMA']
+            d['OVER_EMA'] = d['close'] > d['EMA']
+            d['OVER_SMA'] = d['close'] > d['SMA']
+            d['pOVER_EMA'] = d['pclose'] > d['pEMA']
+            d['pOVER_SMA'] = d['pclose'] > d['pSMA']
+            d['EMA_OVER_SMA'] = d['EMA'] > d['SMA']
+            d['pEMA_OVER_SMA'] = d['pEMA'] > d['pSMA']
+            # BB, KC
+            d['BB_PC_RISING'] = d['BB_PC'] > d['pBB_PC']
+            d['KC_INSIDE_BB'] = d['BB_UPPER1'] > d['KC_UPPER']
+            d['pKC_INSIDE_BB'] = d['pBB_UPPER1'] > d['pKC_UPPER']
+            # ATR rising
+            d['ATR_RISING'] = d['ATR'] > d['pATR']
+            # ADX, DMIs rising
+            d['ADX_RISING'] = d['ADX'] > d['pADX']
+            d['DMIP_RISING'] = d['DMIP'] > d['pDMIP']
+            d['DMIM_RISING'] = d['DMIM'] > d['pDMIM']
+            d['DMI_DIFFERENCE'] = d['DMIP'] - d['DMIM']
+            d['pDMI_DIFFERENCE'] = d['pDMIP'] - d['pDMIM']
+            # RSI Rising
+            d['RSI_RISING'] = d['RSI'] > d['pRSI']
+            # PSAR Bull
+            d['PSAR_BULL'] = d['PSAR'] < d['low']
+            d['pPSAR_BULL'] = d['pPSAR'] < d['plow']
+            # Candle Type
+            d['CANDLE_TYPE'] = getCandleType(d['open'], d['high'], d['low'], d['close'])
+            d['pCANDLE_TYPE'] = getCandleType(d['popen'], d['phigh'], d['plow'], d['pclose'])
+            # insideCandle
+            d['INSIDE_CANDLE'] = d['high'] < d['phigh'] and d['low'] < d['plow']
+            d['OUTSIDE_CANDLE'] = d['high'] > d['phigh'] and d['low'] > d['plow']
+
+            # Add all the data to the dict
+            if len(self.setups) == 0:
+                self.setups = pd.DataFrame(d, index=[0])
+            else:
+                self.setups.loc[len(self.setups)] = d
+
+            self.setups.to_json('setups.json')
+            self.setups.to_csv('setups.csv')
+        except Exception as e:
+            self.showMessage(f'Unable to save setups.json, check logs!')
+            self.logger.exception('addSetup: EXCEPTION')
 
 
     def onRangeChange(self, chart:Chart, barsBefore, barsAfter):
@@ -295,19 +418,71 @@ class Window():
         self.onTakeScreenshot(self.chart)
 
 
-    def onHotkeyToggleMarker(self, key:str):
+    def onHotkeyToggleMarker(self, key:str=''):
         self.logger.debug('onHotkeyToggleMarker()')
         menu:MenuWidget = self.chart.topbar.get('menu-marker')
+        switcher:SwitcherWidget = self.chart.topbar.get('switcher-type')
         if menu.value == '🟩':
             menu.set('🟥')
         elif menu.value == '🟥':
-            menu.set('🟪')
+            if switcher.value == 'Signal':
+                menu.set('🟩')
+            else:
+                menu.set('🟪')
         else:
             menu.set('🟩')
+        self.updateMarkers()
+
+
+    def onSwitchType(self, chart:Chart):
+        menu:MenuWidget = self.chart.topbar.get('menu-marker')
+        if menu.value == '🟪':
+            self.onHotkeyToggleMarker()
+        self.updateMarkers()
 
 
     def onToggleMarker(self, chart:Chart):
         self.logger.debug('onToggleMarker()')
+        sType = self.chart.topbar.get('switcher-type').value
+        if sType == 'Signal':
+            self.onSwitchType(self.chart)
+
+
+    def updateMarkers(self) -> None:
+        try:
+            # Clear all markers
+            self.onClearAll(self.chart)
+
+            if len(self.setups) == 0:
+                return
+
+            # Filter all signals and trades based on current settings
+            signalType = self.chart.topbar['switcher-type'].value
+            filter = {
+                'ticker': self.chart.topbar['textbox-ticker'].value,
+                'strategy': self.chart.topbar['menu-strategy'].value,
+                'timeframe': self.chart.topbar['menu-timeframe'].value,
+                'signalType': signalType
+            }
+            currentSetups:pd.DataFrame = self.setups.loc[(self.setups[list(filter)] == pd.Series(filter)).all(axis=1)].copy()
+            # Exit if no setups with the current settings
+            if len(currentSetups) == 0:
+                return
+
+            currentSetups.sort_values('time', ascending=True, inplace=True)
+
+            if signalType == 'Signal':
+                for idx, s in currentSetups.iterrows():
+                    if s['direction'] == 'long':
+                        self.chart.marker(s['time'], 'below', 'arrow_up', BUY_MARKER_COLOR)               
+                    else:
+                        self.chart.marker(s['time'], 'above', 'arrow_down', SELL_MARKER_COLOR)
+            else:
+                # TODO: Implement function
+                pass
+
+        except:
+            self.logger.exception('updateMarkers: EXCEPTION')
 
 
     # handler for the screenshot button
@@ -338,6 +513,7 @@ class Window():
 
     def onClearAll(self, chart:Chart):
         try:
+            # TODO: Only clear current trade
             self.logger.debug(f'onClearAll()')
             self.chart.clear_markers()
             if self.riskLine != None:
@@ -376,6 +552,10 @@ class Window():
     def onNextDay(self, chart:Chart):
         self.currentDate = self.currentDate + timedelta(days=1)
         self.getBarData()
+
+
+    def onStrategySelection(self, chart:Chart):
+        self.updateMarkers()
 
 
     def showHelpMessage(self):
