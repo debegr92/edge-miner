@@ -1,4 +1,5 @@
 import os
+import math
 import numpy as np
 import pandas as pd
 from datetime import date, datetime
@@ -50,6 +51,9 @@ TICKERS = df['ticker'].unique().tolist()
 TICKERS = ['ALL TICKERS'] + TICKERS
 TIMEFRAMES = df['timeframe'].unique().tolist()
 
+T0_COLUMNS = ['BB_PC','RSI','CANDLE_TYPE','DMIP','DMIM','ADX','DMIP_RISING','DMIM_RISING','ADX_RISING','EMA_RISING','SMA_RISING','EMA_OVER_SMA','VOL_SMA_RISING','VOL_MULTIPLE','RSI_RISING','PSAR_BULL','INSIDE_CANDLE']
+T1_COLUMNS = ['pBB_PC','pRSI','pCANDLE_TYPE','pDMIP','pDMIM','pADX']
+
 print(df)
 
 # App layout
@@ -97,7 +101,10 @@ app.layout = html.Div([
                         ),
                         html.H6('Timeframe'),
                         dcc.Dropdown(options=TIMEFRAMES, value=TIMEFRAMES[0] if len(TIMEFRAMES) > 0 else None, id='dropdown-timeframe', placeholder='Select a timeframe...'),
-                        dbc.Button(id='button-show', children=['Show Data']),
+                        dbc.Button(id='button-show', children=[
+                            'Show Data',
+                            dbc.Badge(id='badge-show-data', children=[f'{len(df)}'], color='light', text_color='primary', className='ms-1'),
+                        ]),
                     ], gap=2)
                 ], style={'padding':10, 'margin':10})
             ], width='2'),
@@ -107,11 +114,14 @@ app.layout = html.Div([
                     dbc.Tab([
                         #html.H3('Query'),
                         #html.P(id='p-info', children=''),
-                        dcc.Graph(id='graph-content'),
-                    ], label='Histograms'),
+                        dcc.Graph(id='graph-t0-histograms'),
+                    ], label='t0 Histograms'),
+                    dbc.Tab([
+                        dcc.Graph(id='graph-t1-histograms'),
+                    ], label='t-1 Histograms'),
                 ])
             ], width='10'),
-        ], style={'padding':5})
+        ], style={'padding':1})
     ])
 ])
 
@@ -127,7 +137,17 @@ def onRangeDropdown(value:str):
     return DATE_RANGES[value][0], DATE_RANGES[value][1]
 
 
-def genHistogramFig(dfIn:pd.DataFrame, col:str, mean:bool=True):
+def generateHistogramFig(dfIn:pd.DataFrame, col:str, mean:bool=True) -> go.Figure:
+    """Function to create a Plotly Express histogram with an average line
+
+    Args:
+        dfIn (pd.DataFrame): Input data
+        col (str): Column name
+        mean (bool, optional): Also plot an average line. Defaults to True.
+
+    Returns:
+        go.Figure: Figure or None if error
+    """
     try:
         
         fig = px.histogram(dfIn, x=col, title=col)
@@ -136,12 +156,62 @@ def genHistogramFig(dfIn:pd.DataFrame, col:str, mean:bool=True):
             fig.add_vline(x=mv, line_dash='dash', line_color='red', annotation_text=f'avg = {mv:.2f}', annotation_position='top')
         return fig
     except:
-        logging.exception('genHistogramFig EXCEPTION')
+        logging.exception('generateHistogramFig EXCEPTION')
+    return None
+
+
+def generateMultipleHistograms(dfIn:pd.DataFrame, cols:list, subplot_columns:int=3) -> go.Figure:
+    """Generate mutliple histograms using subplot.
+
+    Args:
+        dfIn (pd.DataFrame): Input data.
+        cols (list): List with column names inside the DataFrame.
+        subplot_columns (int, optional): Number of subplot columns. Defaults to 3.
+
+    Returns:
+        go.Figure: Output figure or None if error.
+    """
+    try:
+        n_rows = math.ceil(len(cols)/subplot_columns)
+
+        fig = make_subplots(
+            rows=n_rows, cols=subplot_columns,
+            subplot_titles=[f'{g}' for g in cols]
+        )
+
+        for i, name in enumerate(cols):
+            row = i // subplot_columns + 1
+            col = i % subplot_columns + 1
+
+            if 'CANDLE_TYPE' in name:
+                ctypeDf = dfIn[name].astype(str).copy()
+                fig.add_trace(go.Histogram(x=ctypeDf, name=name), row=row, col=col)
+                fig.update_xaxes(categoryorder='category ascending', row=row, col=col)
+            else:
+                fig.add_trace(go.Histogram(x=dfIn[name], name=name), row=row, col=col)
+                mv = dfIn[name].mean()
+                fig.add_vline(x=mv, line_dash='dash', line_color='red', annotation_position='right', row=row, col=col,
+                    annotation=dict(
+                    text=f'avg = {mv:.2f}',
+                    font=dict(size=12, color='black')
+                ))
+
+        fig.update_layout(
+            title='Histograms',
+            showlegend=False,
+            height=1100, width=2000
+        )
+        
+        return fig
+    except:
+        logging.exception('generateMultipleHistograms EXCEPTION')
     return None
 
 
 @callback(
-    Output('graph-content', 'figure'),
+    Output('graph-t0-histograms', 'figure'),
+    Output('graph-t1-histograms', 'figure'),
+    Output('badge-show-data', 'children'),
     Output('alert-error', 'children'),
     Output('alert-error', 'is_open'),
     State('radios-direction', 'value'),
@@ -156,11 +226,13 @@ def genHistogramFig(dfIn:pd.DataFrame, col:str, mean:bool=True):
 def onButtonShowClick(direction:str, type:str, strategy:str, ticker:str, startDateStr:str, endDateStr:str, timeframe:str, _):
     logging.info(f'Show data: {direction}, {strategy}, {ticker}, {startDateStr}, {endDateStr}')
     error = ''
-    fig = None
+    fig_t0 = None
+    fig_t1 = None
+    nSetups = ''
     try:
         if direction == None or type == None or strategy == None or ticker == None or timeframe == None:
             error = 'Invalid filter settings!'
-            return fig, error, len(error)>0
+            return fig_t0, fig_t1, nSetups, error, len(error)>0
 
         startDate = datetime.fromisoformat(startDateStr)
         endDate = datetime.fromisoformat(endDateStr)
@@ -172,13 +244,15 @@ def onButtonShowClick(direction:str, type:str, strategy:str, ticker:str, startDa
             (df['time'].between(startDate, endDate)) &
             (df['timeframe'] == timeframe)
         ]
+        nSetups = f'{len(filteredDf)}'
 
-        fig = genHistogramFig(filteredDf, 'INSIDE_CANDLE')
+        fig_t0 = generateMultipleHistograms(filteredDf, T0_COLUMNS)
+        fig_t1 = generateMultipleHistograms(filteredDf, T1_COLUMNS)
 
     except Exception as e:
         logging.exception('onButtonShowClick EXCEPTION')
         error = str(e)
-    return fig, error, len(error)>0
+    return fig_t0, fig_t1, nSetups, error, len(error)>0
 
 
 # Run the app
