@@ -52,8 +52,8 @@ TICKERS = df['ticker'].unique().tolist()
 TICKERS = ['ALL TICKERS'] + TICKERS
 TIMEFRAMES = df['timeframe'].unique().tolist()
 
-T0_COLUMNS = ['BB_PC','RSI','CANDLE_TYPE','DMIP','DMIM','ADX','DMIP_RISING','DMIM_RISING','ADX_RISING','EMA_RISING','SMA_RISING','EMA_OVER_SMA','VOL_SMA_RISING','VOL_MULTIPLE','RSI_RISING','PSAR_BULL','INSIDE_CANDLE']
-T1_COLUMNS = ['pBB_PC','pRSI','pCANDLE_TYPE','pDMIP','pDMIM','pADX']
+T0_COLUMNS = ['GAP_PC','CHANGE_PC','ATR_RISING','BB_PC','KC_INSIDE_BB','BB_PC_RISING','ADX','DMIP','DMIM','ADX_RISING','DMIP_RISING','DMIM_RISING','DMI_DIFFERENCE','RSI','RSI_RISING','VOL_SMA_RISING','VOL_MULTIPLE','PSAR_BULL','EMA_RISING','SMA_RISING','OVER_EMA','OVER_SMA','EMA_OVER_SMA','INSIDE_CANDLE','OUTSIDE_CANDLE','CANDLE_TYPE']
+T1_COLUMNS = ['pCHANGE_PC','pPSAR_BULL','pCANDLE_TYPE','pBB_PC','pKC_INSIDE_BB','pADX','pDMIP','pDMIM','pDMI_DIFFERENCE','pRSI','pVOL_MULTIPLE','pOVER_EMA','pOVER_SMA','pEMA_OVER_SMA']
 
 print(df)
 
@@ -159,7 +159,7 @@ def generateHistogramFig(dfIn:pd.DataFrame, col:str, mean:bool=True) -> go.Figur
     return None
 
 
-def generateMultipleHistograms(dfIn:pd.DataFrame, cols:list, subplot_columns:int=3) -> go.Figure:
+def generateMultipleHistograms(dfIn:pd.DataFrame, cols:list, subplot_columns:int=3, height:int=920) -> go.Figure:
     """Generate mutliple histograms using subplot.
 
     Args:
@@ -198,7 +198,7 @@ def generateMultipleHistograms(dfIn:pd.DataFrame, cols:list, subplot_columns:int
 
         fig.update_layout(
             showlegend=False,
-            height=920, width=1600
+            height=height, width=1600
         )
         
         return fig
@@ -245,7 +245,7 @@ def onButtonShowClick(direction:str, type:str, strategy:str, ticker:str, startDa
         ]
         nSetups = f'{len(filteredDf)}'
 
-        fig_t0 = generateMultipleHistograms(filteredDf, T0_COLUMNS)
+        fig_t0 = generateMultipleHistograms(filteredDf, T0_COLUMNS, height=1650)
         fig_t1 = generateMultipleHistograms(filteredDf, T1_COLUMNS)
 
     except Exception as e:
