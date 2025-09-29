@@ -111,15 +111,13 @@ app.layout = html.Div([
             dbc.Col([
                 dbc.Alert(children='', id='alert-error', is_open=False, color='danger', dismissable=True),
                 dbc.Tabs([
-                    dbc.Tab([
-                        #html.H3('Query'),
-                        #html.P(id='p-info', children=''),
-                        dcc.Graph(id='graph-t0-histograms'),
-                    ], label='t0 Histograms'),
-                    dbc.Tab([
+                    dbc.Tab(id='tab-0', children=[
                         dcc.Graph(id='graph-t1-histograms'),
                     ], label='t-1 Histograms'),
-                ])
+                    dbc.Tab(id='tab-1', children=[
+                        dcc.Graph(id='graph-t0-histograms'),
+                    ], label='t0 Histograms'),
+                ], active_tab='tab-1')
             ], width='10'),
         ], style={'padding':1})
     ])
@@ -197,7 +195,6 @@ def generateMultipleHistograms(dfIn:pd.DataFrame, cols:list, subplot_columns:int
                 ))
 
         fig.update_layout(
-            title='Histograms',
             showlegend=False,
             height=1100, width=2000
         )
