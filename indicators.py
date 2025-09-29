@@ -2,7 +2,7 @@ import logging
 from typing import List, Tuple, Optional
 import numpy as np
 import pandas as pd
-from ta.trend import PSARIndicator
+from ta.trend import PSARIndicator, SMAIndicator
 
 
 def isIntraday(df:pd.DataFrame) -> True:
@@ -61,15 +61,20 @@ def indicatorFactory(df:pd.DataFrame) -> pd.DataFrame:
     df1['RSI'] = df1Rsi['RSI 14']
     df1['ATR'] = df1Atr['ATR']
 
+    # Volume SMA
+    volSmaInd = SMAIndicator(df1['volume'], 10, True)
+    df1['VOL_SMA'] = volSmaInd.sma_indicator()
+
     # Keltner Channel
     df1['KC_UPPER'] = df1['SMA'] + 2.0 * df1['ATR']
     df1['KC_LOWER'] = df1['SMA'] - 2.0 * df1['ATR']
 
     # Parabolic Stop and Reverse
-    dfPsar = PSARIndicator(df1['high'], df1['low'], df1['close'], fillna=True)
-    df1['PSAR'] = dfPsar.psar()
+    psarInd = PSARIndicator(df1['high'], df1['low'], df1['close'], fillna=True)
+    df1['PSAR'] = psarInd.psar()
 
     df1.dropna(inplace=True)
+    df1.reset_index(inplace=True, drop=True)
 
     return df1
 
