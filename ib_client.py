@@ -1,6 +1,6 @@
 # General Imports
 import asyncio
-from datetime import datetime
+from datetime import time, datetime
 import logging
 import threading
 from typing import Dict, List, Tuple, Optional
@@ -58,7 +58,8 @@ class IBClient(GenericClient, EWrapper, EClient):
         # Intraday -> Timestamp as string, >=EOD -> Date string ("20200921")
         dt = None
         try:
-            dt = datetime.strptime(bar.date, '%Y%m%d')
+            d = datetime.strptime(bar.date, '%Y%m%d').date()
+            dt = datetime.combine(d, time(15, 30))
         except:
             dt = datetime.fromtimestamp(int(bar.date))
         data = {
