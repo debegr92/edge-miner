@@ -247,3 +247,35 @@ def AverageTrueRange(dfIn:pd.DataFrame, period:int=20) -> float:
     except:
         logging.exception('Error while calculating indicator "AverageTrueRange"')
     return pd.DataFrame({'time': df['time']})
+
+
+def getCandleType(open:float, high:float, low:float, close:float) -> int:
+    try:
+        ctype = 0
+        step = (high-low)/5
+        # Open
+        if open <= low + step:
+            ctype = 10
+        elif open <= low + 2*step and open > low + step:
+            ctype = 20
+        elif open <= low + 3*step and open > low + 2*step:
+            ctype = 30
+        elif open <= low + 4*step and open > low + 3*step:
+            ctype = 40
+        elif open <= high and open > low + 4*step:
+            ctype = 50
+        # Close
+        if close <= low + step:
+            ctype = ctype+1
+        elif close < low + 2*step and close > low + step:
+            ctype = ctype+2
+        elif close < low + 3*step and close >= low + 2*step:
+            ctype = ctype+3
+        elif close < low + 4*step and close >= low + 3*step:
+            ctype = ctype+4
+        elif close <= low + 5*step and close >= low + 4*step:
+            ctype = ctype+5
+        return ctype
+    except:
+        logging.exception('Error while calculating "CandleType"')
+    return 0
