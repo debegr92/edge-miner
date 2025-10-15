@@ -3,6 +3,7 @@ import os
 import sys
 import logging
 import pandas as pd
+from typing import Dict
 from zoneinfo import ZoneInfo
 from datetime import date, time, datetime, timedelta
 
@@ -42,6 +43,7 @@ class Window():
         self.client = client
         self.dataQueue:asyncio.Queue = client.dataQueue
         self.data:pd.DataFrame = None
+        self.timestampMarkers:Dict[(datetime,str),str] = {}    # Save long/short marker
         
         self.setups:pd.DataFrame = pd.DataFrame()
         if os.path.exists('setups.json'):
@@ -294,14 +296,22 @@ class Window():
     def onClick(self, chart:Chart, timestamp:float, price:float):
         self.logger.debug(f'onClick({timestamp}, {price})')
         tool = self.chart.topbar['menu-marker'].value
+        sType = self.chart.topbar['switcher-type'].value
         try:
             if timestamp == None or price == None:
                 return
-            
-            sType = self.chart.topbar['switcher-type'].value
+
+            dt = datetime.fromtimestamp(timestamp)
+
             if sType == 'Signal':
-                self.addSetup(datetime.fromtimestamp(timestamp))
+                direction = 'long' if tool == '🟩' else 'short'
+                # Check if already a long/short marker at this position
+                if (dt, direction) in self.timestampMarkers:
+                    self.removeSetup(dt, direction)
+                else:
+                    self.addSetup(dt, direction)
             else:
+                # TODO: Implement trade setup
                 if tool == '🟪':
                     if self.riskLine == None:
                         self.riskLine = self.chart.horizontal_line(price, RISK_LINE_COLOR, width=2)
@@ -312,9 +322,8 @@ class Window():
             self.logger.exception('onClick: EXCEPTION')
 
 
-    def addSetup(self, dt:datetime) -> None:
+    def addSetup(self, dt:datetime, direction:str) -> None:
         try:
-            tool = self.chart.topbar['menu-marker'].value
             ticker = self.chart.topbar['textbox-ticker'].value
             strategy = self.chart.topbar['menu-strategy'].value
             timeframe = self.chart.topbar['menu-timeframe'].value
@@ -326,12 +335,14 @@ class Window():
                 'signalType': signalType
             }
             
-            if tool == '🟩':
-                d['direction'] = 'long'
-                self.chart.marker(dt.timestamp()*1000, 'below', 'arrow_up', BUY_MARKER_COLOR)
-            elif tool == '🟥':
-                d['direction'] = 'short'
-                self.chart.marker(dt.timestamp()*1000, 'above', 'arrow_down', SELL_MARKER_COLOR)
+            d['direction'] = direction
+            mid = self.chart.marker(
+                dt.timestamp()*1000,
+                'below' if direction == 'long' else 'above',
+                'arrow_up' if direction == 'long' else 'arrow_down',
+                BUY_MARKER_COLOR if direction == 'long' else SELL_MARKER_COLOR
+            )
+            self.timestampMarkers[(dt, direction)] = mid
 
             # Closest row
             pos = self.data['time'].searchsorted(dt)
@@ -355,6 +366,8 @@ class Window():
             d = {**d, **closest_row, **before_row_prefixed}
 
             # Calculate additional states
+            d['ENTRY_TIME'] = d['time'].dt.strftime('%H:%M')
+            d['ENTRY_DATE'] = d['time'].dt.date.astype(str)
             # percent change
             d['GAP_PC'] = (d['open']/d['pclose']-1.0)*100.0
             d['CHANGE_PC'] = (d['close']/d['open']-1.0)*100.0
@@ -410,6 +423,15 @@ class Window():
             self.logger.exception('addSetup: EXCEPTION')
 
 
+    def removeSetup(self, dt: datetime, direction:str) -> None:
+        try:
+            mid = self.timestampMarkers.get((dt, direction), None)
+            if mid != None:
+                self.chart.remove_marker(mid)
+            # TODO: Also remove from DataFrame
+        except:
+            self.logger.exception('removeSetup: EXCEPTION')
+
     def onRangeChange(self, chart:Chart, barsBefore, barsAfter):
         self.logger.debug(f'onRangeChange({barsBefore}, {barsAfter})')
 
@@ -452,6 +474,7 @@ class Window():
         try:
             # Clear all markers
             self.onClearAll(self.chart)
+            self.timestampMarkers = {}
 
             if len(self.setups) == 0:
                 return
@@ -474,9 +497,11 @@ class Window():
             if signalType == 'Signal':
                 for idx, s in currentSetups.iterrows():
                     if s['direction'] == 'long':
-                        self.chart.marker(s['time'], 'below', 'arrow_up', BUY_MARKER_COLOR)               
+                        mid = self.chart.marker(s['time'], 'below', 'arrow_up', BUY_MARKER_COLOR)
+                        self.timestampMarkers[(s['time'], 'long')] = mid
                     else:
-                        self.chart.marker(s['time'], 'above', 'arrow_down', SELL_MARKER_COLOR)
+                        mid = self.chart.marker(s['time'], 'above', 'arrow_down', SELL_MARKER_COLOR)
+                        self.timestampMarkers[(s['time'], 'short')] = mid
             else:
                 # TODO: Implement function
                 pass
@@ -488,6 +513,7 @@ class Window():
     # handler for the screenshot button
     def onTakeScreenshot(self, chart:Chart):
         # TODO: Implement symbol, timeframe, date, time, timestamp file name
+        # TODO: Add all tags to metadata
         try:
             img = chart.screenshot()
             symbol = self.chart.topbar['textbox-ticker'].value
