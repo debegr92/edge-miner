@@ -6,7 +6,7 @@ import threading
 from typing import Dict, List, Tuple, Optional
 # TWS API
 from ibapi.client import EClient
-from ibapi.common import BarData
+from ibapi.common import BarData, TickerId
 from ibapi.contract import Contract, ContractDetails
 from ibapi.wrapper import EWrapper
 
@@ -135,29 +135,28 @@ class IBClient(GenericClient, EWrapper, EClient):
     def contractDetailsEnd(self, reqId:int):
         self.logger.debug('End of contract details')
 
-
-    def error(self, e:Exception):
-        self.logger.error(e)
-
-
-    def error(self, msg:str):
-        if msg != None and 'Order Canceled - reason: - (202)' in msg:
-            # Ignore order cancelled error
+    def error(
+        self,
+        reqId: TickerId,
+        errorTime: int,
+        errorCode: int,
+        errorString: str,
+        advancedOrderRejectJson='',
+    ):
+        # Ignore order cancelled error
+        if errorString != None and 'Order Canceled - reason: - (202)' in errorString:
             return
-        self.sendMessage(msg)
-        self.logger.error(msg)
-
-
-    def error(self, reqId:int, code:int, msg:str, misc:str=''):
-        if code in [2104, 2106, 2158]:
-            if 'is OK' in msg:
-                self.logger.info(msg)
+        # Ignore/handle some other errors
+        if errorCode in [2104, 2106, 2158]:
+            if 'is OK' in errorString:
+                # Market data information
+                self.logger.info(errorString)
             else:
-                self.logger.error(msg)
-        elif code == 202:
+                self.logger.error(errorString)
+        elif errorCode == 202:
             self.logger.info('Order successfully cancelled')
         else:
-            msg = f'{msg} - ({code})'
+            msg = f'{errorString} - ({errorCode})'
             self.sendMessage(msg)
             self.logger.error(msg)
 
