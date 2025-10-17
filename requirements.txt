@@ -5,3 +5,4 @@ python-dotenv
 ta
 dash
 dash-bootstrap-components
+.dist/ibapi-10.37.2-py3-none-any.whl
