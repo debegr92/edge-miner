@@ -6,7 +6,7 @@
 ![edge-miner](doc/img/edge-miner.png)
 
 # Install
-This project comes with a stable build of the **TWS API**. If you want to build the API by your own, follow the [installation guide](./doc/install-api.md) and replace wheel file in the **dist** folder.
+This project comes with a **stable build** of the **TWS API**. If you want to build the API by your own, follow the [installation guide](./doc/install-api.md) and replace wheel file in the **dist** folder.
 ```
 python -m venv .venv
 source .venv/bin/activate
