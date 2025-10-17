@@ -1,8 +1,8 @@
 pandas
-pywebview[qt]
+pywebview[pyside6]
 lightweight-charts-v5
 python-dotenv
 ta
 dash
 dash-bootstrap-components
-.dist/ibapi-10.37.2-py3-none-any.whl
+dist/ibapi-10.37.2-py3-none-any.whl
