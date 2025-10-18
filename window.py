@@ -77,6 +77,7 @@ class Window():
 
         self.chart.topbar.textbox('sep4', '|')
         self.chart.topbar.menu('menu-strategy', ('Mean Reversion','Trend Follow','VWAP Test','VWAP Cross'), default='Mean Reversion', func=self.onStrategySelection)
+        self.chart.topbar.switcher('switcher-outcome', ('winner', 'loser',), 'winner', func=self.onSwitchOutcome)
 
         self.chart.topbar.button('button-info', 'ℹ️', align='right', func=self.onInfoClick)
 
@@ -328,19 +329,22 @@ class Window():
             strategy = self.chart.topbar['menu-strategy'].value
             timeframe = self.chart.topbar['menu-timeframe'].value
             signalType = self.chart.topbar['switcher-type'].value
+            outcome = self.chart.topbar['switcher-outcome'].value
             d = {
                 'ticker': ticker,
                 'strategy': strategy,
                 'timeframe': timeframe,
-                'signalType': signalType
+                'signalType': signalType,
+                'outcome': outcome
             }
             
             d['direction'] = direction
+            color = WINNER_MARKER_COLOR if outcome == 'winner' else LOSER_MARKER_COLOR
             mid = self.chart.marker(
                 dt.timestamp()*1000,
                 'below' if direction == 'long' else 'above',
                 'arrow_up' if direction == 'long' else 'arrow_down',
-                BUY_MARKER_COLOR if direction == 'long' else SELL_MARKER_COLOR
+                color
             )
             self.timestampMarkers[(dt, direction)] = mid
 
@@ -366,8 +370,8 @@ class Window():
             d = {**d, **closest_row, **before_row_prefixed}
 
             # Calculate additional states
-            d['ENTRY_TIME'] = d['time'].dt.strftime('%H:%M')
-            d['ENTRY_DATE'] = d['time'].dt.date.astype(str)
+            d['ENTRY_TIME'] = d['time'].strftime('%H:%M')
+            d['ENTRY_DATE'] = d['time'].strftime('%Y-%m-%d')
             # percent change
             d['GAP_PC'] = (d['open']/d['pclose']-1.0)*100.0
             d['CHANGE_PC'] = (d['close']/d['open']-1.0)*100.0
@@ -496,11 +500,12 @@ class Window():
 
             if signalType == 'Signal':
                 for idx, s in currentSetups.iterrows():
+                    color = WINNER_MARKER_COLOR if s['outcome'] == 'winner' else LOSER_MARKER_COLOR
                     if s['direction'] == 'long':
-                        mid = self.chart.marker(s['time'], 'below', 'arrow_up', BUY_MARKER_COLOR)
+                        mid = self.chart.marker(s['time'], 'below', 'arrow_up', color)
                         self.timestampMarkers[(s['time'], 'long')] = mid
                     else:
-                        mid = self.chart.marker(s['time'], 'above', 'arrow_down', SELL_MARKER_COLOR)
+                        mid = self.chart.marker(s['time'], 'above', 'arrow_down', color)
                         self.timestampMarkers[(s['time'], 'short')] = mid
             else:
                 # TODO: Implement function
@@ -582,6 +587,10 @@ class Window():
 
     def onStrategySelection(self, chart:Chart):
         self.updateMarkers()
+
+
+    def onSwitchOutcome(self, chart:Chart):
+        pass
 
 
     def showHelpMessage(self):
