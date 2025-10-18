@@ -196,13 +196,32 @@ def generateMultipleHistograms(dfIn:pd.DataFrame, cols:list, subplot_columns:int
                 fig.add_trace(go.Histogram(x=ctypeDf, name=name), row=row, col=col)
                 fig.update_xaxes(categoryorder='category ascending', row=row, col=col)
             else:
-                fig.add_trace(go.Histogram(x=dfIn[name], name=name), row=row, col=col)
-                mv = dfIn[name].mean()
-                fig.add_vline(x=mv, line_dash='dash', line_color='red', annotation_position='right', row=row, col=col,
-                    annotation=dict(
-                    text=f'avg = {mv:.2f}',
-                    font=dict(size=12, color='black')
-                ))
+                # Check if boolean data and format different
+                if pd.api.types.is_bool_dtype(dfIn[name]):
+                    tempDf = dfIn[name].copy().astype(int)
+                    fig.add_trace(go.Histogram(x=tempDf, name=name, xbins=dict(start=-0.5, end=1.5, size=1)), row=row, col=col)
+                    fig.update_xaxes(
+                        title='Value',
+                        tickmode='array',
+                        tickvals=[0, 1],
+                        ticktext=['0 (False)', '1 (True)'],
+                        row=row, col=col
+                    )
+                    mv = dfIn[name].mean()
+                    fig.add_vline(x=mv, line_dash='dash', line_color='red', annotation_position='right', row=row, col=col,
+                        annotation=dict(
+                        text=f'avg = {int(mv*100.0):.0f}%',
+                        font=dict(size=12, color='black')
+                    ))
+                else:
+                    # Standard histogram for numeric values
+                    fig.add_trace(go.Histogram(x=dfIn[name], name=name), row=row, col=col)
+                    mv = dfIn[name].mean()
+                    fig.add_vline(x=mv, line_dash='dash', line_color='red', annotation_position='right', row=row, col=col,
+                        annotation=dict(
+                        text=f'avg = {mv:.2f}',
+                        font=dict(size=12, color='black')
+                    ))
 
         fig.update_layout(
             showlegend=False,
