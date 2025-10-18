@@ -66,14 +66,10 @@ app.layout = html.Div([
                 dbc.Card([
                     dbc.Stack([
                         html.H5('Filter Setups'),
-                        html.H6('Direction'),
-                        dbc.RadioItems(id='radios-direction', className='btn-group', inputClassName='btn-check', labelClassName='btn btn-outline-primary', labelCheckedClassName='active',
-                            options=[
-                                {'label': 'Long', 'value': 'long'},
-                                {'label': 'Short', 'value': 'short'}
-                            ],
-                            value='long',
-                        ),
+                        html.H6('Strategy'),
+                        dcc.Dropdown(options=STRATEGIES, value=STRATEGIES[0] if len(STRATEGIES) > 0 else None, id='dropdown-strategy', placeholder='Select a strategy...'),
+                        html.H6('Ticker'),
+                        dcc.Dropdown(options=TICKERS, value=TICKERS[0] if len(TICKERS) > 0 else None, id='dropdown-ticker', placeholder='Select a ticker...'),
                         html.H6('Type'),
                         dbc.RadioItems(id='radios-type', className='btn-group', inputClassName='btn-check', labelClassName='btn btn-outline-primary', labelCheckedClassName='active',
                             options=[
@@ -82,10 +78,22 @@ app.layout = html.Div([
                             ],
                             value='signal',
                         ),
-                        html.H6('Strategy'),
-                        dcc.Dropdown(options=STRATEGIES, value=STRATEGIES[0] if len(STRATEGIES) > 0 else None, id='dropdown-strategy', placeholder='Select a strategy...'),
-                        html.H6('Ticker'),
-                        dcc.Dropdown(options=TICKERS, value=TICKERS[0] if len(TICKERS) > 0 else None, id='dropdown-ticker', placeholder='Select a ticker...'),
+                        html.H6('Direction'),
+                        dbc.RadioItems(id='radios-direction', className='btn-group', inputClassName='btn-check', labelClassName='btn btn-outline-primary', labelCheckedClassName='active',
+                            options=[
+                                {'label': 'Long', 'value': 'long'},
+                                {'label': 'Short', 'value': 'short'}
+                            ],
+                            value='long',
+                        ),
+                        html.H6('Outcome'),
+                        dbc.RadioItems(id='radios-outcome', className='btn-group', inputClassName='btn-check', labelClassName='btn btn-outline-primary', labelCheckedClassName='active',
+                            options=[
+                                {'label': 'Winners', 'value': 'winner'},
+                                {'label': 'Losers', 'value': 'loser'}
+                            ],
+                            value='winner',
+                        ),
                         html.H6('Date Window'),
                         dcc.Dropdown(
                             id='dropdown-range',
@@ -217,12 +225,13 @@ def generateMultipleHistograms(dfIn:pd.DataFrame, cols:list, subplot_columns:int
     State('radios-type', 'value'),
     State('dropdown-strategy', 'value'),
     State('dropdown-ticker', 'value'),
+    State('radios-outcome', 'value'),
     State('date-picker-range', 'start_date'),
     State('date-picker-range', 'end_date'),
     State('dropdown-timeframe', 'value'),
     Input('button-show', 'n_clicks'),
     prevent_initial_call=True)
-def onButtonShowClick(direction:str, type:str, strategy:str, ticker:str, startDateStr:str, endDateStr:str, timeframe:str, _):
+def onButtonShowClick(direction:str, type:str, strategy:str, ticker:str, outcome:str, startDateStr:str, endDateStr:str, timeframe:str, _):
     logging.info(f'Show data: {direction}, {strategy}, {ticker}, {startDateStr}, {endDateStr}')
     error = ''
     fig_t0 = None
@@ -241,6 +250,7 @@ def onButtonShowClick(direction:str, type:str, strategy:str, ticker:str, startDa
             (df['strategy'] == strategy) &
             (df['direction'] == direction) &
             (df['time'].between(startDate, endDate)) &
+            (df['outcome'] == outcome) &
             (df['timeframe'] == timeframe)
         ]
         nSetups = f'{len(filteredDf)}'
